@@ -23,6 +23,7 @@ const iconOriginalStroke = iconContainer ? (iconContainer.style.stroke || 'white
 const iconOriginalFill = iconContainer ? (iconContainer.style.fill || 'white') : 'white';
 let isChasing = false;
 let lastMessageIndex = -1;
+let chasingButton = null; // <-- new
 
 // --- Helper Functions ---
 
@@ -44,86 +45,96 @@ function getRandomMessage() {
 function chaseButton(event) {
     if (!isChasing) return;
 
-    // Prevent scrolling on touch devices during the chase
     if (event.type === 'touchmove') {
         event.preventDefault();
     }
 
-    // Get client coordinates, preferring touch over mouse
     const clientX = event.touches?.[0]?.clientX ?? event.clientX;
     const clientY = event.touches?.[0]?.clientY ?? event.clientY;
 
     if (clientX === undefined || clientY === undefined) return;
 
-    const wrapperRect = buttonWrapper.getBoundingClientRect();
-    const buttonRect = loveButton.getBoundingClientRect();
+    // If the moving target uses fixed positioning, allow it to move across whole viewport:
+    const targetButton = chasingButton || document.querySelector('#buttonWrapper .moving');
+    if (!targetButton) return;
 
-    // Input coordinates relative to the wrapper
+    const isFixed = targetButton.classList.contains('fixed-moving') || targetButton.style.position === 'fixed';
+    const wrapperRect = isFixed
+        ? { left: 0, top: 0, width: window.innerWidth, height: window.innerHeight }
+        : buttonWrapper.getBoundingClientRect();
+
+    const buttonRect = targetButton.getBoundingClientRect();
+
     const inputX = clientX - wrapperRect.left;
     const inputY = clientY - wrapperRect.top;
 
-    // Button center coordinates relative to the wrapper
-    const buttonCenterX = parseFloat(loveButton.style.left) + buttonRect.width / 2;
-    const buttonCenterY = parseFloat(loveButton.style.top) + buttonRect.height / 2;
+    const styleLeft = parseFloat(targetButton.style.left);
+    const styleTop = parseFloat(targetButton.style.top);
 
-    const distance = Math.sqrt(
-        Math.pow(inputX - buttonCenterX, 2) + Math.pow(inputY - buttonCenterY, 2)
-    );
+    const buttonCenterX =
+        (Number.isFinite(styleLeft) ? styleLeft : (buttonRect.left - wrapperRect.left)) + buttonRect.width / 2;
+    const buttonCenterY =
+        (Number.isFinite(styleTop) ? styleTop : (buttonRect.top - wrapperRect.top)) + buttonRect.height / 2;
 
-    const chaseRadius = 150;
+    const distance = Math.hypot(inputX - buttonCenterX, inputY - buttonCenterY);
+
+    const chaseRadius = 200;
     if (distance < chaseRadius) {
-        // Calculate the direction vector away from the input
         const angle = Math.atan2(buttonCenterY - inputY, buttonCenterX - inputX);
-        const step = 80;
+        const step = 120; // step size (increase to make it run faster)
 
         let newX = buttonCenterX + Math.cos(angle) * step - buttonRect.width / 2;
         let newY = buttonCenterY + Math.sin(angle) * step - buttonRect.height / 2;
 
-        // Clamp the position to keep the button fully inside the wrapper
+        // Bound the movement to wrapperRect (or full viewport for fixed targets)
         newX = Math.max(0, Math.min(newX, wrapperRect.width - buttonRect.width));
         newY = Math.max(0, Math.min(newY, wrapperRect.height - buttonRect.height));
 
-        loveButton.style.left = `${newX}px`;
-        loveButton.style.top = `${newY}px`;
+        targetButton.style.left = `${newX}px`;
+        targetButton.style.top = `${newY}px`;
     }
 }
 
 function startChaseMode() {
     isChasing = true;
 
-    // 1. Position the button absolutely
-    loveButton.classList.add('moving');
+    // change the chase target to the dislike ("I don't love") button
+    chasingButton = dislikeButton;
+    chasingButton.classList.add('moving', 'fixed-moving');
 
-    // Calculate initial center position based on the wrapper's dimensions
-    const wrapperRect = buttonWrapper.getBoundingClientRect();
-    const buttonRect = loveButton.getBoundingClientRect();
+    // move the dislike button out of the wrapper so it can roam the whole screen
+    document.body.appendChild(chasingButton);
+    chasingButton.style.position = 'fixed';
 
-    // Center the button initially
-    loveButton.style.left = `${(wrapperRect.width - buttonRect.width) / 2}px`;
-    loveButton.style.top = `${(wrapperRect.height - buttonRect.height) / 2}px`;
+    // Center the dislike button initially inside viewport
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const buttonRect = chasingButton.getBoundingClientRect();
+    chasingButton.style.left = `${(vw - buttonRect.width) / 2}px`;
+    chasingButton.style.top = `${(vh - buttonRect.height) / 2}px`;
 
-    // 2. Hide the dislike button
-    dislikeButton.classList.add('hidden');
-
-    // 3. Register the continuous chasing logic for both mouse and touch
-    buttonWrapper.addEventListener('mousemove', chaseButton);
-    buttonWrapper.addEventListener('touchmove', chaseButton, { passive: false });
+    // Add listeners on the window (so the button reacts anywhere on screen)
+    window.addEventListener('mousemove', chaseButton);
+    window.addEventListener('touchmove', chaseButton, { passive: false });
 }
 
 function stopChaseMode() {
     isChasing = false;
 
-    // 1. Remove listeners
-    buttonWrapper.removeEventListener('mousemove', chaseButton);
-    buttonWrapper.removeEventListener('touchmove', chaseButton);
+    window.removeEventListener('mousemove', chaseButton);
+    window.removeEventListener('touchmove', chaseButton);
 
-    // 2. Reset position and appearance
-    loveButton.classList.remove('moving');
-    loveButton.style.left = 'unset';
-    loveButton.style.top = 'unset';
+    if (chasingButton) {
+        chasingButton.classList.remove('moving', 'fixed-moving');
 
-    // 3. Bring back the 'I don't love' button
-    dislikeButton.classList.remove('hidden');
+        // move it back into the wrapper and reset
+        buttonWrapper.appendChild(chasingButton);
+        chasingButton.style.position = '';
+        chasingButton.style.left = 'unset';
+        chasingButton.style.top = 'unset';
+    }
+
+    chasingButton = null;
 }
 
 // --- Event Listeners ---
@@ -175,4 +186,3 @@ lucide.createIcons();
 document.addEventListener('DOMContentLoaded', () => {
     dynamicMessage.classList.add('revealed');
 });
-
