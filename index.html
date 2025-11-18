@@ -4,80 +4,15 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>For My Dearest</title>
+    
+    
     <!-- Load Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
     <!-- Load Lucide Icons for the heart and sparkle -->
     <script src="https://unpkg.com/lucide@latest"></script>
-    <style>
-        /* Define the Inter font and smooth transitions */
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
-        
-        body {
-            font-family: 'Inter', sans-serif;
-            /* Deep radial gradient background for a romantic feel */
-            background: radial-gradient(circle at top left, #a855f7, #ec4899);
-            min-height: 100vh;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-        }
 
-        .card {
-            /* Better shadow with a neon glow effect */
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.4), 
-                        0 0 40px rgba(236, 72, 153, 0.8);
-        }
-
-        .reveal-message {
-            opacity: 0;
-            transform: translateY(10px);
-            transition: opacity 0.5s ease-out, transform 0.5s ease-out;
-        }
-        .revealed {
-            opacity: 1;
-            transform: translateY(0);
-        }
-
-        /* Heart Pulse Animation */
-        @keyframes heart-pulse {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.05); }
-        }
-        #loveButton:not(.absolute) {
-            animation: heart-pulse 1.5s infinite ease-in-out;
-            transition: all 0.3s ease-out;
-        }
-        
-        /* Styles for the "Running Away" button */
-        #loveButton.moving {
-            animation: none; /* Stop pulsing when running */
-            position: absolute;
-            width: 150px; /* Make it a bit smaller */
-            background-color: #fca5a5; /* Lighter, 'scared' look */
-            transition: transform 0.2s ease-out; /* Fast movement */
-        }
-
-        /* Ensure wrapper takes necessary space */
-        #buttonWrapper {
-            height: 120px;
-            min-height: 120px;
-        }
-        
-        /* Simple Spinner for Loading State */
-        .spinner {
-            border: 4px solid rgba(255, 255, 255, 0.3);
-            border-top: 4px solid #fff;
-            border-radius: 50%;
-            width: 24px;
-            height: 24px;
-            animation: spin 1s linear infinite;
-        }
-        @keyframes spin {
-            0% { transform: rotate(0deg); }
-            100% { transform: rotate(360deg); }
-        }
-
-    </style>
+    <link rel="stylesheet" href="style.css">
+    
 </head>
 <body class="p-4">
 
@@ -98,17 +33,14 @@
         <!-- Dynamic Message Display Area -->
         <div id="messageContainer" class="min-h-24 flex items-center justify-center mb-10">
             <p id="dynamicMessage" class="text-2xl font-bold text-pink-700 reveal-message revealed">
-                Click the sparkle heart for a fresh love note!
+                Tap the sparkle heart for a love note!
             </p>
-            <div id="loadingIndicator" class="hidden">
-                <div class="spinner"></div>
-            </div>
         </div>
 
         <!-- Interactive Buttons Container (relative to contain the moving button) -->
         <div id="buttonWrapper" class="relative flex justify-center items-center gap-4">
 
-            <!-- Main Love Button (Now uses the Gemini API) -->
+            <!-- Main Love Button (Uses local messages now) -->
             <button
                 id="loveButton"
                 class="transition-all duration-300 ease-in-out
@@ -118,7 +50,7 @@
                        focus:outline-none focus:ring-4 focus:ring-pink-300 z-10"
             >
                 <i data-lucide="sparkles" class="w-6 h-6 mr-3 fill-white stroke-white"></i>
-                <span class="text-xl">✨ Generate Love Note</span>
+                <span class="text-xl">✨ Reveal Love Note</span>
             </button>
 
             <!-- Dislike Button -->
@@ -135,194 +67,8 @@
 
     </div>
 
-    <!-- JavaScript Logic -->
-    <script>
-        // --- Gemini API Configuration ---
-        const apiKey = ""; // Leave as-is, Canvas provides this at runtime
-        const apiUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=" + apiKey;
-        
-        // --- DOM Elements ---
-        const loveButton = document.getElementById('loveButton');
-        const dislikeButton = document.getElementById('dislikeButton');
-        const buttonWrapper = document.getElementById('buttonWrapper');
-        const dynamicMessage = document.getElementById('dynamicMessage');
-        const loadingIndicator = document.getElementById('loadingIndicator');
-        const iconContainer = document.querySelector('[data-lucide="sparkles"]');
+    <script src="script.js"></script>
 
-        const iconOriginalStroke = iconContainer ? (iconContainer.style.stroke || 'white') : 'white';
-        const iconOriginalFill = iconContainer ? (iconContainer.style.fill || 'white') : 'white';
-        let isChasing = false;
-
-        // --- API Helper Function with Exponential Backoff ---
-        async function fetchWithRetry(url, options, maxRetries = 3) {
-            for (let i = 0; i < maxRetries; i++) {
-                try {
-                    const response = await fetch(url, options);
-                    if (response.status !== 429) { // 429 is Too Many Requests
-                        return response;
-                    }
-                    console.warn(`Rate limit hit. Retrying in ${2 ** i}s...`);
-                } catch (error) {
-                    console.error("Fetch failed:", error);
-                    if (i === maxRetries - 1) throw error;
-                }
-                await new Promise(resolve => setTimeout(resolve, 1000 * (2 ** i)));
-            }
-            throw new Error("Max retries exceeded.");
-        }
-
-        // --- LLM Generation Function ---
-        async function generateLoveMessageGemini() {
-            // Set loading state
-            loveButton.disabled = true;
-            dynamicMessage.classList.remove('revealed');
-            loadingIndicator.classList.remove('hidden');
-            dynamicMessage.textContent = ''; 
-
-            const systemPrompt = "You are a thoughtful, romantic poet. Generate a single, unique, extremely sweet and personalized reason or short couplet (1-2 sentences maximum) why someone loves their girlfriend. Make it sound heartfelt, genuine, and unique every time, focusing on their character, light, or joy they bring, not just looks.";
-            const userQuery = "Generate a new, sweet, and unique love note for my queen.";
-
-            const payload = {
-                contents: [{ parts: [{ text: userQuery }] }],
-                systemInstruction: { parts: [{ text: systemPrompt }] },
-            };
-
-            try {
-                const response = await fetchWithRetry(apiUrl, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                });
-                
-                if (!response.ok) {
-                    throw new Error(`HTTP error! status: ${response.status}`);
-                }
-
-                const result = await response.json();
-                const text = result.candidates?.[0]?.content?.parts?.[0]?.text || "My love for you is too vast for words, even for AI!";
-                
-                // Update text content with the generated message
-                dynamicMessage.textContent = text.trim().replace(/^["']|["']$/g, ''); // Clean quotes
-                
-            } catch (error) {
-                console.error("Gemini API call failed:", error);
-                dynamicMessage.textContent = "Oops! My heart skipped a beat (and the API failed). Try again!";
-            } finally {
-                // Reset state
-                loadingIndicator.classList.add('hidden');
-                dynamicMessage.classList.add('revealed');
-                loveButton.disabled = false;
-            }
-        }
-
-        // --- Chase Mechanic Functions ---
-
-        // Moves the button away from the mouse cursor
-        function chaseButton(event) {
-            if (!isChasing) return;
-            
-            const wrapperRect = buttonWrapper.getBoundingClientRect();
-            const buttonRect = loveButton.getBoundingClientRect();
-
-            // Mouse coordinates relative to the wrapper
-            const mouseX = event.clientX - wrapperRect.left;
-            const mouseY = event.clientY - wrapperRect.top;
-
-            // Button center coordinates relative to the wrapper
-            const buttonCenterX = parseFloat(loveButton.style.left) + buttonRect.width / 2;
-            const buttonCenterY = parseFloat(loveButton.style.top) + buttonRect.height / 2;
-
-            const distance = Math.sqrt(
-                Math.pow(mouseX - buttonCenterX, 2) + Math.pow(mouseY - buttonCenterY, 2)
-            );
-            
-            const chaseRadius = 150;
-            if (distance < chaseRadius) {
-                const angle = Math.atan2(buttonCenterY - mouseY, buttonCenterX - mouseX);
-                const step = 80;
-
-                let newX = buttonCenterX + Math.cos(angle) * step - buttonRect.width / 2;
-                let newY = buttonCenterY + Math.sin(angle) * step - buttonRect.height / 2;
-
-                // Clamp the position to keep the button fully inside the wrapper
-                newX = Math.max(0, Math.min(newX, wrapperRect.width - buttonRect.width));
-                newY = Math.max(0, Math.min(newY, wrapperRect.height - buttonRect.height));
-                
-                loveButton.style.left = `${newX}px`;
-                loveButton.style.top = `${newY}px`;
-            }
-        }
-
-        function startChaseMode() {
-            isChasing = true;
-            
-            // 1. Position the button absolutely
-            loveButton.classList.add('moving');
-            
-            // Calculate initial center position based on the wrapper's dimensions
-            const wrapperRect = buttonWrapper.getBoundingClientRect();
-            const buttonRect = loveButton.getBoundingClientRect();
-            
-            loveButton.style.left = `${(wrapperRect.width - buttonRect.width) / 2}px`;
-            loveButton.style.top = `${(wrapperRect.height - buttonRect.height) / 2}px`;
-
-            // 2. Hide the dislike button
-            dislikeButton.classList.add('hidden');
-            
-            // 3. Register the continuous chasing logic on mousemove over the wrapper
-            buttonWrapper.addEventListener('mousemove', chaseButton);
-        }
-
-        function stopChaseMode() {
-            isChasing = false;
-            
-            // 1. Remove listeners and reset state
-            buttonWrapper.removeEventListener('mousemove', chaseButton);
-            
-            // 2. Reset position and appearance
-            loveButton.classList.remove('moving');
-            loveButton.style.left = 'unset';
-            loveButton.style.top = 'unset';
-            
-            // 3. Bring back the 'I don't love' button
-            dislikeButton.classList.remove('hidden');
-        }
-
-        // --- Event Listeners ---
-
-        // Main Love Button Click Handler
-        loveButton.addEventListener('click', () => {
-            // Stop chasing if it's active
-            if (isChasing) {
-                stopChaseMode();
-            } 
-            
-            // Generate message using Gemini
-            generateLoveMessageGemini();
-        });
-
-        // 'I don't love' Button Click Handler
-        dislikeButton.addEventListener('click', () => {
-            // 1. Display the fixed message
-            dynamicMessage.classList.remove('revealed');
-            loadingIndicator.classList.add('hidden'); // Ensure loading is hidden
-            setTimeout(() => {
-                dynamicMessage.textContent = "Oh please. Catch the running heart, my dear!";
-                dynamicMessage.classList.add('revealed');
-            }, 500);
-            
-            // 2. Start the main love button movement
-            startChaseMode();
-        });
-
-        // Initialize Lucide icons
-        lucide.createIcons();
-
-        // Ensure the initial message is visible immediately on load
-        document.addEventListener('DOMContentLoaded', () => {
-            dynamicMessage.classList.add('revealed');
-        });
-
-    </script>
+    
 </body>
 </html>

@@ -1,0 +1,68 @@
+/* Define the Inter font and smooth transitions */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+
+body {
+    font-family: 'Inter', sans-serif;
+    /* Deep radial gradient background for a romantic feel */
+    background: radial-gradient(circle at top left, #a855f7, #ec4899);
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.card {
+    /* Better shadow with a neon glow effect */
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.4),
+        0 0 40px rgba(236, 72, 153, 0.8);
+}
+
+.reveal-message {
+    opacity: 0;
+    transform: translateY(10px);
+    transition: opacity 0.5s ease-out, transform 0.5s ease-out;
+}
+
+.revealed {
+    opacity: 1;
+    transform: translateY(0);
+}
+
+/* Heart Pulse Animation */
+@keyframes heart-pulse {
+
+    0%,
+    100% {
+        transform: scale(1);
+    }
+
+    50% {
+        transform: scale(1.05);
+    }
+}
+
+#loveButton:not(.absolute) {
+    animation: heart-pulse 1.5s infinite ease-in-out;
+    transition: all 0.3s ease-out;
+}
+
+/* Styles for the "Running Away" button */
+#loveButton.moving {
+    animation: none;
+    /* Stop pulsing when running */
+    position: absolute;
+    width: 150px;
+    /* Make it a bit smaller */
+    background-color: #fca5a5;
+    /* Lighter, 'scared' look */
+    transition: transform 0.2s ease-out;
+    /* Fast movement */
+    /* Ensure the absolute positioning doesn't clip on small screens */
+    max-width: 90%;
+}
+
+/* Ensure wrapper takes necessary space */
+#buttonWrapper {
+    height: 120px;
+    min-height: 120px;
+}
